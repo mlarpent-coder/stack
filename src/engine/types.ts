@@ -8,6 +8,8 @@ export type Fish = 'never' | 'subweekly' | '1-2' | '3plus'
 export type Sun = '0-1' | '2-3' | '4-5' | '6-7'
 export type Alcohol = 'none' | 'occasional' | 'fewweekly' | 'mostdays'
 export type Activity = 'sedentary' | 'light' | 'moderate' | 'very'
+export type Sleep = 'good' | 'patchy' | 'poor'
+export type Periods = 'regular' | 'light' | 'none'
 export type YesNo = 'yes' | 'no'
 
 export type Goal = 'energy' | 'sleep' | 'futurehealth' | 'skin' | 'immunity'
@@ -34,6 +36,8 @@ export interface Profile {
   sun?: Sun
   alcohol?: Alcohol
   activity?: Activity
+  sleep?: Sleep
+  periods?: Periods // only relevant when sex === 'female'
   safety?: YesNo
   goal: Goal[]
   prefs: Pref[]
@@ -42,8 +46,8 @@ export interface Profile {
 }
 
 /** A fully-answered profile — every gate answered. Produced once the assessment is complete. */
-export type CompleteProfile = Required<Omit<Profile, 'goal' | 'prefs' | 'taking' | 'blood'>> &
-  Pick<Profile, 'goal' | 'prefs' | 'taking' | 'blood'>
+export type CompleteProfile = Required<Omit<Profile, 'goal' | 'prefs' | 'taking' | 'blood' | 'sleep' | 'periods'>> &
+  Pick<Profile, 'goal' | 'prefs' | 'taking' | 'blood' | 'sleep' | 'periods'>
 
 /** Recommendation verdicts. Profile-derived recs use add/essential/consider/check;
  *  reconcile verdicts use keep/drop/adjust/check. */

@@ -10,8 +10,10 @@ import { SRC } from './knowledge'
 import type { CompleteProfile, Rec, ReconItem, SupplementId } from './types'
 
 // ---- small, named predicates so the rules read like sentences ----
-export const childbearing = (p: CompleteProfile) =>
-  p.sex === 'female' && (p.age === 'under30' || p.age === '30s' || p.age === '40s')
+// Iron risk is driven by menstrual blood loss, NOT age — so someone with no periods
+// (continuous contraception, menopause, etc.) isn't in the high-loss group.
+export const menstruating = (p: CompleteProfile) =>
+  p.sex === 'female' && (p.periods === 'regular' || p.periods === 'light')
 export const isActive = (p: CompleteProfile) => p.activity === 'moderate' || p.activity === 'very'
 export const lowSun = (p: CompleteProfile) => p.sun === '0-1' || p.sun === '2-3'
 export const isPlant = (p: CompleteProfile) => p.diet === 'vegan' || p.diet === 'vegetarian'
@@ -129,9 +131,20 @@ export function profileRecs(p: CompleteProfile): Rec[] {
       id: 'magnesium', name: 'Magnesium', verdict: 'add', badge: 'Worth taking',
       why:
         'A sensible add — ' + drivers + "depletes it, and it's decent for sleep and recovery." +
-        (goalHas(p, 'sleep') ? ' Given you mentioned sleep, take it in the evening.' : ''),
+        (goalHas(p, 'sleep') || p.sleep === 'poor' ? ' Take it in the evening — it may help your sleep, too.' : ''),
       evidence: 'mod',
       science: 'Modest but real evidence for magnesium glycinate on sleep and recovery; low intake is more common with heavy training and higher alcohol use.',
+      sources: [SRC.exMag],
+    })
+  }
+
+  // Poor sleep on its own: magnesium is a modest, honest add — but the real levers aren't a pill.
+  if (p.sleep === 'poor' && !r.some((x) => x.id === 'magnesium')) {
+    r.push({
+      id: 'magnesium', name: 'Magnesium', verdict: 'consider', badge: 'Consider · sleep',
+      why: "Your sleep's been rough — magnesium glycinate in the evening has modest evidence for sleep quality. Worth a try, but the bigger levers are a steady routine, morning daylight and caffeine timing, not a supplement.",
+      evidence: 'mod',
+      science: 'Evidence for magnesium and sleep is modest; behavioural sleep measures have larger effects.',
       sources: [SRC.exMag],
     })
   }
@@ -144,11 +157,11 @@ export function profileRecs(p: CompleteProfile): Rec[] {
       id: 'iron', name: 'Iron', verdict: v.verdict, badge: v.badge, why: v.why, evidence: 'strong',
       science: 'Ferritin reflects iron stores; supplement only when low, and ideally with clinical guidance.', sources: [SRC.nhsVit],
     })
-  } else if (childbearing(p)) {
+  } else if (menstruating(p)) {
     r.push({
       id: 'iron', name: 'Iron — get it checked first', verdict: 'check', badge: 'Get tested',
-      why: "Menstruating women are the group most likely to run low on iron — so it's worth a ferritin blood test. Never supplement iron blind; too much is harmful.",
-      evidence: 'strong', science: 'Iron status should be confirmed by ferritin before supplementing; unnecessary iron causes harm.', sources: [SRC.nhsVit],
+      why: "Because you have periods, you're in the group most likely to run low on iron — so it's worth a ferritin blood test. Never supplement iron blind; too much is harmful.",
+      evidence: 'strong', science: 'Menstrual blood loss is the main driver of low iron in this group; confirm with ferritin before supplementing.', sources: [SRC.nhsVit],
     })
   }
 

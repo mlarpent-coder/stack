@@ -5,7 +5,7 @@ import type { CompleteProfile } from './types'
 // A neutral baseline we override per-test, so each test states only what it depends on.
 const base: CompleteProfile = {
   age: '40s', sex: 'female', diet: 'omnivore', fish: '1-2', sun: '2-3',
-  alcohol: 'occasional', activity: 'moderate', safety: 'no',
+  alcohol: 'occasional', activity: 'moderate', sleep: 'good', periods: 'regular', safety: 'no',
   goal: [], prefs: [], taking: [],
 }
 const p = (over: Partial<CompleteProfile>): CompleteProfile => ({ ...base, ...over })
@@ -50,12 +50,31 @@ describe('creatine', () => {
   })
 })
 
-describe('iron is a check, gated on who actually needs it', () => {
-  it('flags a ferritin test for menstruating-age women', () => {
-    expect(byId(profileRecs(p({ sex: 'female', age: '30s' })), 'iron')?.verdict).toBe('check')
+describe('iron is a check, gated on menstrual blood loss (not age)', () => {
+  it('flags a ferritin test for someone who has periods', () => {
+    expect(byId(profileRecs(p({ sex: 'female', periods: 'regular' })), 'iron')?.verdict).toBe('check')
+  })
+  it('does NOT flag iron for a woman with no periods (e.g. continuous contraception)', () => {
+    expect(byId(profileRecs(p({ sex: 'female', age: '40s', periods: 'none' })), 'iron')).toBeUndefined()
   })
   it('does not flag iron for men', () => {
     expect(byId(profileRecs(p({ sex: 'male' })), 'iron')).toBeUndefined()
+  })
+  it('but a low ferritin reading still flags, periods or not', () => {
+    const rec = byId(profileRecs(p({ sex: 'female', periods: 'none', blood: { ferritin: 10 } })), 'iron')
+    expect(rec?.verdict).toBe('check')
+    expect(rec?.why).toMatch(/GP/)
+  })
+})
+
+describe('sleep: honest, not an upsell', () => {
+  it('poor sleep surfaces magnesium as a "consider", even for the otherwise-magnesium-free', () => {
+    const rec = byId(profileRecs(p({ activity: 'sedentary', alcohol: 'none', sleep: 'poor' })), 'magnesium')
+    expect(rec?.verdict).toBe('consider')
+    expect(rec?.why).toMatch(/routine|daylight|caffeine/) // says the real levers aren't a pill
+  })
+  it('good sleep + no other driver → no magnesium at all', () => {
+    expect(byId(profileRecs(p({ activity: 'sedentary', alcohol: 'none', sleep: 'good' })), 'magnesium')).toBeUndefined()
   })
 })
 

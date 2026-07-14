@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react'
-import type { CompleteProfile, Profile, ReconItem, Rec, SupplementId } from './engine/types'
+import type { BloodMarkers, CompleteProfile, Profile, ReconItem, Rec, SupplementId } from './engine/types'
 import { profileRecs, reconcileStack, buildPlan } from './engine/engine'
 import { howFor } from './engine/knowledge'
 import { Ambient, Brand, Progress, Question, RecCard, SwipeDeck, HowGrid } from './ui/components'
 
 type Screen = 'intro' | 'assess' | 'report' | 'current' | 'swipe' | 'plan'
 
-const REQUIRED: (keyof Profile)[] = ['age', 'sex', 'diet', 'fish', 'sun', 'alcohol', 'activity', 'safety']
+const REQUIRED: (keyof Profile)[] = ['age', 'sex', 'diet', 'fish', 'sun', 'alcohol', 'activity', 'sleep', 'safety']
 
 // Single-select assessment questions, in order.
 const QUESTIONS: { key: keyof Profile; label: string; hint?: string; options: [string, string][] }[] = [
@@ -17,6 +17,14 @@ const QUESTIONS: { key: keyof Profile; label: string; hint?: string; options: [s
   { key: 'sun', label: 'Days a week with skin in daylight, ~1hr+', hint: 'Arms or face — not through a window', options: [['0-1', '0–1'], ['2-3', '2–3'], ['4-5', '4–5'], ['6-7', '6–7']] },
   { key: 'alcohol', label: 'Alcohol', options: [['none', 'None'], ['occasional', 'Occasionally'], ['fewweekly', 'A few a week'], ['mostdays', 'Most days']] },
   { key: 'activity', label: 'How active you are', options: [['sedentary', 'Mostly sedentary'], ['light', 'Lightly active'], ['moderate', 'Moderate'], ['very', 'Very active']] },
+  { key: 'sleep', label: 'How you sleep', options: [['good', 'Sleeping well'], ['patchy', 'A bit patchy'], ['poor', 'Sleeping badly']] },
+]
+
+const BLOOD_FIELDS: { k: keyof BloodMarkers; label: string; unit: string; ph: string }[] = [
+  { k: 'vitD', label: 'Vitamin D', unit: 'nmol/L', ph: 'e.g. 58' },
+  { k: 'ferritin', label: 'Ferritin', unit: 'µg/L', ph: 'e.g. 41' },
+  { k: 'b12', label: 'Vitamin B12', unit: 'ng/L', ph: 'e.g. 380' },
+  { k: 'folate', label: 'Folate', unit: 'µg/L', ph: 'e.g. 8' },
 ]
 
 const GOALS: [string, string][] = [['energy', 'Energy'], ['sleep', 'Sleep'], ['futurehealth', 'Long-term health'], ['skin', 'Skin'], ['immunity', 'Immunity']]
@@ -32,9 +40,11 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('intro')
   const [profile, setProfile] = useState<Profile>(EMPTY)
   const [none, setNone] = useState(false)
+  const [showBlood, setShowBlood] = useState(false)
   const [recon, setRecon] = useState<ReconItem[]>([])
 
-  const complete = REQUIRED.every((k) => profile[k])
+  // periods is required only for female profiles (it drives the iron logic)
+  const complete = REQUIRED.every((k) => profile[k]) && (profile.sex !== 'female' || !!profile.periods)
   const cp = profile as CompleteProfile
 
   // recs are pure-derived from the profile once it's complete
@@ -57,7 +67,16 @@ export default function App() {
         : [...p.taking, id as SupplementId],
     }))
   }
-  function reset() { setProfile(EMPTY); setNone(false); setRecon([]); goto('intro') }
+  function setBlood(k: keyof BloodMarkers, raw: string) {
+    setProfile((prof) => {
+      const blood: BloodMarkers = { ...(prof.blood ?? {}) }
+      const v = raw.trim()
+      if (v === '' || Number.isNaN(Number(v))) delete blood[k]
+      else blood[k] = Number(v)
+      return { ...prof, blood: Object.keys(blood).length ? blood : undefined }
+    })
+  }
+  function reset() { setProfile(EMPTY); setNone(false); setShowBlood(false); setRecon([]); goto('intro') }
 
   function goReport() { goto('report') }
   function sortStack() {
@@ -85,12 +104,36 @@ export default function App() {
               <Question key={q.key} label={q.label} hint={q.hint} options={q.options}
                 value={(profile[q.key] as string) ?? ''} onSelect={(v) => setField(q.key, v)} />
             ))}
+            {profile.sex === 'female' && (
+              <Question label="Do you have periods?" hint="Whatever the reason — contraception, menopause, or otherwise. It affects iron risk."
+                options={[['regular', 'Yes, regular'], ['light', 'Light or irregular'], ['none', 'No — none right now']]}
+                value={profile.periods ?? ''} onSelect={(v) => setField('periods', v)} />
+            )}
             <Question label="What's on your mind?" optional hint="Pick any that apply" multi options={GOALS}
               value={profile.goal} onSelect={(v) => toggle('goal', v)} />
             <Question label="Any way you won't take things?" optional multi options={PREFS}
               value={profile.prefs} onSelect={(v) => toggle('prefs', v)} />
             <Question label="Regular medications or diagnosed conditions?" options={[['no', 'No'], ['yes', 'Yes']]}
               value={profile.safety ?? ''} onSelect={(v) => setField('safety', v)} />
+
+            <div className="q">
+              <div className="lab">Had a blood test recently that gave you these numbers?<span className="opt">optional</span></div>
+              <div className="hint">Only these four change a supplement call. Have them to hand? Add them to sharpen the result — otherwise skip.</div>
+              {!showBlood ? (
+                <button type="button" className="chip" onClick={() => setShowBlood(true)}>Yes, I'll add them →</button>
+              ) : (
+                <div className="bloodgrid">
+                  {BLOOD_FIELDS.map((f) => (
+                    <label className="bfield" key={f.k}>
+                      <span className="bk">{f.label} <em>{f.unit}</em></span>
+                      <input type="number" inputMode="decimal" min="0" step="any" placeholder={f.ph}
+                        value={profile.blood?.[f.k] ?? ''} onChange={(e) => setBlood(f.k, e.target.value)} />
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="actions">
               <button className="btn" disabled={!complete} onClick={goReport}>See what's worth taking →</button>
             </div>
@@ -118,6 +161,12 @@ export default function App() {
               <div className="aside">
                 <b>One honest aside:</b> easing back on alcohol would move your long-term health more than anything
                 here — and it's part of why magnesium made the list. Not a lecture, just the most useful thing we can say.
+              </div>
+            )}
+            {profile.sleep === 'poor' && (
+              <div className="aside">
+                <b>On sleep:</b> the biggest levers are a steady schedule, morning daylight and cutting caffeine after
+                midday — more than any supplement. Anything here is a small add on top.
               </div>
             )}
             <div className="actions">
