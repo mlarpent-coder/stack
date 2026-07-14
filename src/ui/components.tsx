@@ -66,7 +66,22 @@ export function HowGrid({ how }: { how: HowTo }) {
           </div>
         ))}
       </div>
-      {how.buy && <div className="buy">{how.buy}</div>}
+      {(how.buy || how.links) && (
+        <div className="buy">
+          {how.buy}
+          {how.links && (
+            <div className="buylinks">
+              Where:{' '}
+              {how.links.map((l, i) => (
+                <span key={l.url}>
+                  {i > 0 && ' · '}
+                  <a href={l.url} target="_blank" rel="noopener noreferrer">{l.label}</a>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

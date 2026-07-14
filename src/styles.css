@@ -102,7 +102,9 @@ details[open] summary .arw{transform:rotate(90deg);}
 .how .cell .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--soft);font-weight:700;}
 .how .cell .v{font-size:13.5px;font-weight:600;line-height:1.35;}
 .how .buy{margin-top:12px;font-size:12px;color:var(--soft);font-weight:600;border-top:1px dashed rgba(45,108,255,.25);padding-top:9px;}
-.how .buy a{color:var(--blue);font-weight:700;text-decoration:none;}
+.how .buy a{color:var(--blue);font-weight:700;text-decoration:none;border-bottom:1.5px solid rgba(45,108,255,.35);}
+.how .buy a:hover{border-bottom-color:var(--blue);}
+.how .buylinks{margin-top:6px;font-family:var(--mono);font-size:11.5px;letter-spacing:.02em;}
 
 .aside{font-size:13.5px;color:var(--soft);font-weight:600;line-height:1.5;border-left:3px solid var(--rule);padding:2px 0 2px 14px;margin:20px 2px;}
 .aside b{color:var(--ink);}

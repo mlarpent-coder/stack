@@ -18,8 +18,33 @@ export const isActive = (p: CompleteProfile) => p.activity === 'moderate' || p.a
 export const lowSun = (p: CompleteProfile) => p.sun === '0-1' || p.sun === '2-3'
 export const isPlant = (p: CompleteProfile) => p.diet === 'vegan' || p.diet === 'vegetarian'
 const goalHas = (p: CompleteProfile, g: string) => p.goal.includes(g as never)
+const hasCond = (p: CompleteProfile, c: string) => p.conditions.includes(c as never)
 
-const VERDICT_ORDER: Record<string, number> = { essential: 0, add: 1, consider: 2, check: 3, keep: 4 }
+const VERDICT_ORDER: Record<string, number> = { essential: 0, add: 1, consider: 2, check: 3, keep: 4, drop: 5 }
+
+/** Safety pass: real contraindications that MODIFY a recommendation, not just warn beside it.
+ *  Runs after the profile rules so the base logic stays readable. */
+function applySafety(recs: Rec[], p: CompleteProfile): Rec[] {
+  const kidney = hasCond(p, 'kidney')
+  const bleed = hasCond(p, 'bloodthinners')
+  const ironOverload = hasCond(p, 'ironoverload')
+  const thyroidMeds = hasCond(p, 'thyroidmeds')
+  return recs.map((rec): Rec => {
+    if (kidney && (rec.id === 'creatine' || rec.id === 'magnesium')) {
+      return { ...rec, verdict: 'check', badge: 'Not without your GP', why: `You flagged kidney disease — ${rec.name.toLowerCase()} can be a problem for the kidneys, so don't start it without your doctor's OK.` }
+    }
+    if (bleed && rec.id === 'omega3') {
+      return { ...rec, verdict: 'check', badge: 'Check with your GP', why: "You're on blood thinners — fish or algal oil can add to bleeding risk, so clear it with your GP before starting." }
+    }
+    if (ironOverload && rec.id === 'iron') {
+      return { ...rec, name: 'Iron', verdict: 'drop', badge: 'Do not take', why: 'You have iron overload — do not take iron. Your levels should be managed by your specialist, never topped up.' }
+    }
+    if (thyroidMeds && rec.id === 'iron' && rec.verdict !== 'drop') {
+      return { ...rec, why: rec.why + ' (Keep any iron at least 4 hours apart from your thyroid tablet — it blocks absorption.)' }
+    }
+    return rec
+  })
+}
 
 /** Turn a real ferritin reading into an iron verdict. Shared by the report and the reconcile step
  *  so an uploaded blood result gives ONE consistent answer in both places. */
@@ -114,6 +139,15 @@ export function profileRecs(p: CompleteProfile): Rec[] {
     })
   }
 
+  // --- Folate: the one clear-cut supplement for anyone pregnant or trying ---
+  if (p.sex === 'female' && (p.pregnancy === 'trying' || p.pregnancy === 'pregnant')) {
+    r.push({
+      id: 'folate', name: 'Folic acid', verdict: 'essential', badge: 'Essential',
+      why: "If you're pregnant or trying, this is the one clear-cut supplement — 400 µg daily from before conception through the first 12 weeks. It sharply cuts the risk of neural-tube defects like spina bifida.",
+      evidence: 'strong', science: 'Peri-conceptional folic acid is among the most robustly evidenced interventions in medicine for preventing neural-tube defects.', sources: [SRC.nhsB12],
+    })
+  }
+
   // --- Creatine: strong for the active; a "consider" otherwise ---
   const femaleOlder = p.sex === 'female' && (p.age === '40s' || p.age === '50s' || p.age === '60plus')
   if (isActive(p)) {
@@ -190,7 +224,7 @@ export function profileRecs(p: CompleteProfile): Rec[] {
     })
   }
 
-  return r.sort((a, b) => VERDICT_ORDER[a.verdict] - VERDICT_ORDER[b.verdict])
+  return applySafety(r, p).sort((a, b) => VERDICT_ORDER[a.verdict] - VERDICT_ORDER[b.verdict])
 }
 
 /** A verdict on a single supplement the user already takes. Returns null if we have no opinion. */
@@ -251,7 +285,23 @@ export function buildPlan(p: CompleteProfile, recs: Rec[], recon: ReconItem[]): 
   }
 }
 
+/** Safety overrides applied to something the user ALREADY takes. */
+function applySafetyRecon(item: ReconItem, p: CompleteProfile): ReconItem {
+  if (hasCond(p, 'ironoverload') && item.id === 'iron')
+    return { ...item, verdict: 'drop', why: 'Stop — you have iron overload; do not take iron. Speak to your specialist.' }
+  if (hasCond(p, 'bloodthinners') && (item.id === 'omega3' || item.id === 'omega369'))
+    return { ...item, verdict: 'check', why: "You're on blood thinners — fish oil can add to bleeding risk; check with your GP before continuing." }
+  if (hasCond(p, 'kidney') && item.id === 'magnesium')
+    return { ...item, verdict: 'check', why: 'You flagged kidney disease — magnesium can accumulate; check with your GP.' }
+  if (hasCond(p, 'thyroidmeds') && item.id === 'iron' && item.verdict !== 'drop')
+    return { ...item, why: item.why + ' Keep it 4h apart from your thyroid tablet.' }
+  return item
+}
+
 /** Convenience: reconcile the whole current stack at once. */
 export function reconcileStack(p: CompleteProfile): ReconItem[] {
-  return p.taking.map((id) => reconcileItem(p, id)).filter((x): x is ReconItem => x !== null)
+  return p.taking
+    .map((id) => reconcileItem(p, id))
+    .filter((x): x is ReconItem => x !== null)
+    .map((item) => applySafetyRecon(item, p))
 }

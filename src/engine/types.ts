@@ -15,9 +15,12 @@ export type YesNo = 'yes' | 'no'
 
 export type Goal = 'energy' | 'sleep' | 'futurehealth' | 'skin' | 'immunity'
 export type Pref = 'coffee' | 'nolarge' | 'powder'
+export type Pregnancy = 'no' | 'trying' | 'pregnant'
+/** The medication/condition flags that genuinely change a supplement recommendation. */
+export type Condition = 'kidney' | 'bloodthinners' | 'ironoverload' | 'thyroidmeds' | 'other' | 'none'
 export type SupplementId =
   | 'vitd' | 'omega3' | 'omega369' | 'b12' | 'creatine'
-  | 'magnesium' | 'vitc' | 'multi' | 'iron'
+  | 'magnesium' | 'vitc' | 'multi' | 'iron' | 'folate'
 
 /** The four blood markers that actually change a supplement recommendation.
  *  Stored in canonical UK units; the parser + confirm step normalise to these. */
@@ -40,16 +43,18 @@ export interface Profile {
   activity?: Activity
   sleep?: Sleep
   periods?: Periods // only relevant when sex === 'female'
-  safety?: YesNo
+  pregnancy?: Pregnancy // only relevant when sex === 'female'
   goal: Goal[]
   prefs: Pref[]
+  conditions: Condition[] // medications/conditions that gate recommendations
   taking: SupplementId[]
   blood?: BloodMarkers
 }
 
 /** A fully-answered profile — every gate answered. Produced once the assessment is complete. */
-export type CompleteProfile = Required<Omit<Profile, 'goal' | 'prefs' | 'taking' | 'blood' | 'sleep' | 'periods'>> &
-  Pick<Profile, 'goal' | 'prefs' | 'taking' | 'blood' | 'sleep' | 'periods'>
+export type CompleteProfile =
+  Required<Omit<Profile, 'goal' | 'prefs' | 'taking' | 'conditions' | 'blood' | 'sleep' | 'periods' | 'pregnancy'>> &
+  Pick<Profile, 'goal' | 'prefs' | 'taking' | 'conditions' | 'blood' | 'sleep' | 'periods' | 'pregnancy'>
 
 /** Recommendation verdicts. Profile-derived recs use add/essential/consider/check;
  *  reconcile verdicts use keep/drop/adjust/check. */
@@ -87,5 +92,6 @@ export interface ReconItem {
 /** Ordered how-to protocol for a supplement worth adding. */
 export interface HowTo {
   fields: Array<{ k: string; v: string }>
-  buy?: string
+  buy?: string          // merit-based guidance on what to look for
+  links?: Source[]       // reputable retailers, chosen on merit — never commission
 }

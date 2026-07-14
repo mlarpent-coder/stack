@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { profileRecs, reconcileItem, reconcileStack, buildPlan } from './engine'
+import { howFor } from './knowledge'
 import type { CompleteProfile } from './types'
 
 // A neutral baseline we override per-test, so each test states only what it depends on.
 const base: CompleteProfile = {
   age: '40s', sex: 'female', diet: 'omnivore', fish: '1-2', sun: '2-3', latitude: 'high',
-  alcohol: 'occasional', activity: 'moderate', sleep: 'good', periods: 'regular', safety: 'no',
-  goal: [], prefs: [], taking: [],
+  alcohol: 'occasional', activity: 'moderate', sleep: 'good', periods: 'regular', pregnancy: 'no',
+  goal: [], prefs: [], conditions: [], taking: [],
 }
 const p = (over: Partial<CompleteProfile>): CompleteProfile => ({ ...base, ...over })
 const byId = <T extends { id: string }>(recs: T[], id: string): T | undefined => recs.find((r) => r.id === id)
@@ -149,6 +150,47 @@ describe('a blood result changes the answer (not just gets stored)', () => {
   it('does not double-card B12 when a vegan already has an essential B12 rec', () => {
     const recs = profileRecs(p({ diet: 'vegan', blood: { b12: 150 } }))
     expect(recs.filter((r) => r.id === 'b12')).toHaveLength(1)
+  })
+})
+
+describe('folate — the one clear-cut supplement for pregnancy/trying', () => {
+  it('is essential when trying or pregnant, absent otherwise', () => {
+    expect(byId(profileRecs(p({ pregnancy: 'trying' })), 'folate')?.verdict).toBe('essential')
+    expect(byId(profileRecs(p({ pregnancy: 'pregnant' })), 'folate')?.verdict).toBe('essential')
+    expect(byId(profileRecs(p({ pregnancy: 'no' })), 'folate')).toBeUndefined()
+  })
+})
+
+describe('the safety gate actually changes recommendations, not just warns', () => {
+  it('kidney disease → creatine and magnesium become "check with GP", not "add"', () => {
+    const recs = profileRecs(p({ activity: 'very', conditions: ['kidney'] }))
+    expect(byId(recs, 'creatine')?.verdict).toBe('check')
+    expect(byId(recs, 'magnesium')?.verdict).toBe('check')
+  })
+  it('iron overload → iron flips to "do not take"', () => {
+    const rec = byId(profileRecs(p({ periods: 'regular', conditions: ['ironoverload'] })), 'iron')
+    expect(rec?.verdict).toBe('drop')
+    expect(rec?.why).toMatch(/do not take/i)
+  })
+  it('blood thinners → omega-3 flagged to check first (bleeding risk)', () => {
+    const rec = byId(profileRecs(p({ fish: 'never', conditions: ['bloodthinners'] })), 'omega3')
+    expect(rec?.verdict).toBe('check')
+    expect(rec?.why).toMatch(/bleeding/i)
+  })
+  it('thyroid meds → iron gets a 4-hour timing note', () => {
+    const rec = byId(profileRecs(p({ periods: 'regular', conditions: ['thyroidmeds'] })), 'iron')
+    expect(rec?.why).toMatch(/4 hours/i)
+  })
+  it('reconciling a taken iron pill with iron overload says stop', () => {
+    const list = reconcileStack(p({ conditions: ['ironoverload'], taking: ['iron'] }))
+    expect(list.find((x) => x.id === 'iron')?.verdict).toBe('drop')
+  })
+})
+
+describe('buy links are present and merit-based', () => {
+  it('addable supplements carry retailer links', () => {
+    expect((howFor('creatine', base)?.links?.length ?? 0)).toBeGreaterThan(0)
+    expect((howFor('folate', base)?.links?.length ?? 0)).toBeGreaterThan(0)
   })
 })
 

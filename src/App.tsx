@@ -1,12 +1,19 @@
 import { useMemo, useState } from 'react'
-import type { BloodMarkers, CompleteProfile, Profile, ReconItem, Rec, SupplementId } from './engine/types'
+import type { BloodMarkers, Condition, CompleteProfile, Profile, ReconItem, Rec, SupplementId } from './engine/types'
 import { profileRecs, reconcileStack, buildPlan } from './engine/engine'
 import { howFor } from './engine/knowledge'
 import { Ambient, Brand, Progress, Question, RecCard, SwipeDeck, HowGrid } from './ui/components'
 
 type Screen = 'intro' | 'assess' | 'report' | 'current' | 'swipe' | 'plan'
 
-const REQUIRED: (keyof Profile)[] = ['age', 'sex', 'diet', 'fish', 'sun', 'latitude', 'alcohol', 'activity', 'sleep', 'safety']
+const REQUIRED: (keyof Profile)[] = ['age', 'sex', 'diet', 'fish', 'sun', 'latitude', 'alcohol', 'activity', 'sleep']
+
+const CONDITIONS: [string, string][] = [
+  ['kidney', 'Kidney disease'], ['bloodthinners', 'Blood thinners'],
+  ['ironoverload', 'Iron overload / haemochromatosis'], ['thyroidmeds', 'Thyroid medication'],
+  ['other', 'Other medication/condition'],
+]
+const COND_LABEL: Record<string, string> = Object.fromEntries(CONDITIONS)
 
 // Single-select assessment questions, in order.
 const QUESTIONS: { key: keyof Profile; label: string; hint?: string; options: [string, string][] }[] = [
@@ -35,7 +42,7 @@ const TAKING: [string, string][] = [
   ['multi', 'Multivitamin'], ['magnesium', 'Magnesium'], ['b12', 'B12'], ['iron', 'Iron'],
 ]
 
-const EMPTY: Profile = { goal: [], prefs: [], taking: [] }
+const EMPTY: Profile = { goal: [], prefs: [], conditions: [], taking: [] }
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('intro')
@@ -44,8 +51,11 @@ export default function App() {
   const [showBlood, setShowBlood] = useState(false)
   const [recon, setRecon] = useState<ReconItem[]>([])
 
-  // periods is required only for female profiles (it drives the iron logic)
-  const complete = REQUIRED.every((k) => profile[k]) && (profile.sex !== 'female' || !!profile.periods)
+  // conditions must be explicitly answered (incl. "none"); periods + pregnancy required for female
+  const complete =
+    REQUIRED.every((k) => profile[k]) &&
+    profile.conditions.length > 0 &&
+    (profile.sex !== 'female' || (!!profile.periods && !!profile.pregnancy))
   const cp = profile as CompleteProfile
 
   // recs are pure-derived from the profile once it's complete
@@ -67,6 +77,13 @@ export default function App() {
         ? p.taking.filter((x) => x !== id)
         : [...p.taking, id as SupplementId],
     }))
+  }
+  function toggleCond(val: string) {
+    setProfile((p) => {
+      if (val === 'none') return { ...p, conditions: ['none'] as Condition[] }
+      const cur: Condition[] = p.conditions.filter((c) => c !== 'none')
+      return { ...p, conditions: cur.includes(val as Condition) ? cur.filter((c) => c !== val) : [...cur, val as Condition] }
+    })
   }
   function setBlood(k: keyof BloodMarkers, raw: string) {
     setProfile((prof) => {
@@ -110,16 +127,31 @@ export default function App() {
                 options={[['regular', 'Yes, regular'], ['light', 'Light or irregular'], ['none', 'No — none right now']]}
                 value={profile.periods ?? ''} onSelect={(v) => setField('periods', v)} />
             )}
+            {profile.sex === 'female' && (
+              <Question label="Pregnant, or trying to conceive?"
+                options={[['no', 'No'], ['trying', 'Trying, or might soon'], ['pregnant', 'Pregnant now']]}
+                value={profile.pregnancy ?? ''} onSelect={(v) => setField('pregnancy', v)} />
+            )}
             <Question label="What's on your mind?" optional hint="Pick any that apply" multi options={GOALS}
               value={profile.goal} onSelect={(v) => toggle('goal', v)} />
             <Question label="Any way you won't take things?" optional multi options={PREFS}
               value={profile.prefs} onSelect={(v) => toggle('prefs', v)} />
-            <Question label="Regular medications or diagnosed conditions?" options={[['no', 'No'], ['yes', 'Yes']]}
-              value={profile.safety ?? ''} onSelect={(v) => setField('safety', v)} />
+            <div className="q">
+              <div className="lab">Any of these — medications or conditions?</div>
+              <div className="hint">Select any that apply — they affect what's safe for you.</div>
+              <div className="chips">
+                {CONDITIONS.map(([val, text]) => (
+                  <button type="button" key={val} className={`chip${profile.conditions.includes(val as Condition) ? ' sel' : ''}`}
+                    aria-pressed={profile.conditions.includes(val as Condition)} onClick={() => toggleCond(val)}>{text}</button>
+                ))}
+                <button type="button" className={`chip${profile.conditions.includes('none') ? ' sel' : ''}`}
+                  aria-pressed={profile.conditions.includes('none')} onClick={() => toggleCond('none')}>None of these</button>
+              </div>
+            </div>
 
             <div className="q">
-              <div className="lab">Had a blood test recently that gave you these numbers?<span className="opt">optional</span></div>
-              <div className="hint">Only these four change a supplement call. Have them to hand? Add them to sharpen the result — otherwise skip.</div>
+              <div className="lab">Had a recent blood test?<span className="opt">optional</span></div>
+              <div className="hint">If it included vitamin D, ferritin, B12 or folate, add them — those four are what change a supplement call. Otherwise skip.</div>
               {!showBlood ? (
                 <button type="button" className="chip" onClick={() => setShowBlood(true)}>Yes, I'll add them →</button>
               ) : (
@@ -151,10 +183,15 @@ export default function App() {
               <div className="lede">Based only on who you are. Next, we'll sort what you already take.</div>
               <Progress pct={50} />
             </div>
-            {profile.safety === 'yes' && (
+            {profile.pregnancy === 'pregnant' && (
               <div className="gate">
-                <b>Because you take medication or have a condition:</b> some supplements interact with medicines.
-                Check anything here with your GP or pharmacist before you start it.
+                <b>You're pregnant.</b> Stack isn't designed for pregnancy — folic acid aside, please run your whole plan past your midwife or GP.
+              </div>
+            )}
+            {profile.conditions.filter((c) => c !== 'none').length > 0 && (
+              <div className="gate">
+                <b>Because you flagged {profile.conditions.filter((c) => c !== 'none').map((c) => COND_LABEL[c]).join(', ').toLowerCase()}:</b>{' '}
+                some recommendations below are adjusted, or flagged to check with your GP first.
               </div>
             )}
             {recs.map((r) => <RecCard key={r.id} rec={r} profile={cp} />)}
