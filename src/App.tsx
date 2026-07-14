@@ -6,7 +6,7 @@ import { Ambient, Brand, Progress, Question, RecCard, SwipeDeck, HowGrid } from 
 
 type Screen = 'intro' | 'assess' | 'report' | 'current' | 'swipe' | 'plan'
 
-const REQUIRED: (keyof Profile)[] = ['age', 'sex', 'diet', 'fish', 'sun', 'alcohol', 'activity', 'sleep', 'safety']
+const REQUIRED: (keyof Profile)[] = ['age', 'sex', 'diet', 'fish', 'sun', 'latitude', 'alcohol', 'activity', 'sleep', 'safety']
 
 // Single-select assessment questions, in order.
 const QUESTIONS: { key: keyof Profile; label: string; hint?: string; options: [string, string][] }[] = [
@@ -15,6 +15,7 @@ const QUESTIONS: { key: keyof Profile; label: string; hint?: string; options: [s
   { key: 'diet', label: 'How you eat', options: [['omnivore', 'Omnivore'], ['pescatarian', 'Pescatarian'], ['vegetarian', 'Vegetarian'], ['vegan', 'Vegan']] },
   { key: 'fish', label: 'How often you eat oily fish', hint: 'Salmon, mackerel, sardines, trout', options: [['never', 'Never'], ['subweekly', 'Less than weekly'], ['1-2', '1–2× a week'], ['3plus', '3+ a week']] },
   { key: 'sun', label: 'Days a week with skin in daylight, ~1hr+', hint: 'Arms or face — not through a window', options: [['0-1', '0–1'], ['2-3', '2–3'], ['4-5', '4–5'], ['6-7', '6–7']] },
+  { key: 'latitude', label: 'Where do you live?', hint: 'Pick whichever’s closest — it changes your vitamin D', options: [['high', 'UK, N. Europe, Canada, northern US'], ['mid', 'S. Europe, southern US or similar'], ['low', 'Tropics or somewhere sunny year-round']] },
   { key: 'alcohol', label: 'Alcohol', options: [['none', 'None'], ['occasional', 'Occasionally'], ['fewweekly', 'A few a week'], ['mostdays', 'Most days']] },
   { key: 'activity', label: 'How active you are', options: [['sedentary', 'Mostly sedentary'], ['light', 'Lightly active'], ['moderate', 'Moderate'], ['very', 'Very active']] },
   { key: 'sleep', label: 'How you sleep', options: [['good', 'Sleeping well'], ['patchy', 'A bit patchy'], ['poor', 'Sleeping badly']] },

@@ -6,6 +6,7 @@ export type Sex = 'female' | 'male'
 export type Diet = 'omnivore' | 'pescatarian' | 'vegetarian' | 'vegan'
 export type Fish = 'never' | 'subweekly' | '1-2' | '3plus'
 export type Sun = '0-1' | '2-3' | '4-5' | '6-7'
+export type Latitude = 'high' | 'mid' | 'low' // how far from the equator — drives winter vitamin D
 export type Alcohol = 'none' | 'occasional' | 'fewweekly' | 'mostdays'
 export type Activity = 'sedentary' | 'light' | 'moderate' | 'very'
 export type Sleep = 'good' | 'patchy' | 'poor'
@@ -34,6 +35,7 @@ export interface Profile {
   diet?: Diet
   fish?: Fish
   sun?: Sun
+  latitude?: Latitude
   alcohol?: Alcohol
   activity?: Activity
   sleep?: Sleep

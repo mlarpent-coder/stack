@@ -45,21 +45,36 @@ export function profileRecs(p: CompleteProfile): Rec[] {
     else { verdict = 'consider'; badge = "You're topped up"; why = `Your level (${d} nmol/L) is comfortably sufficient — you don't need much beyond maybe a low winter dose.` }
     r.push({
       id: 'vitd', name: 'Vitamin D', verdict, badge, why, evidence: 'strong',
-      science: 'Vitamin D status is best read directly from 25-OH-D. UK guidance treats <25 nmol/L as deficient and ~50+ as sufficient — so a reading replaces any guesswork from sun exposure.',
+      science: 'Vitamin D status is best read directly from 25-OH-D. Standard guidance treats <25 nmol/L as deficient and ~50+ as sufficient — so a reading replaces any guesswork from sun or location.',
       sources: [SRC.nhsD, SRC.vital],
     })
   } else {
-    r.push({
-      id: 'vitd', name: 'Vitamin D', verdict: 'add',
-      badge: lowSun(p) ? 'Worth taking' : 'Worth taking · seasonal',
-      why: lowSun(p)
-        ? 'At UK latitude you get little daylight, and skin makes almost none in winter — the NHS suggests it for everyone in autumn and winter.'
-        : 'Worth it for the darker months (Oct–Mar). Through summer, the daylight you get likely covers you.',
-      evidence: 'strong',
-      science:
-        'UK skin makes negligible vitamin D from October to March, so winter supplementation is widely advised. On breast-cancer prevention, the large VITAL trial found no significant benefit — not a reason to take high doses.',
-      sources: [SRC.nhsD, SRC.vital],
-    })
+    // No blood reading → estimate from latitude + sun exposure. Both are asked, neither assumed.
+    if (p.latitude === 'low') {
+      // Near the equator, sun usually covers it — only flag if they're rarely in it.
+      if (lowSun(p)) {
+        r.push({
+          id: 'vitd', name: 'Vitamin D', verdict: 'consider', badge: 'Optional',
+          why: "Even somewhere sunny, if you're rarely outdoors or usually covered up, a modest daily dose is worth it.",
+          evidence: 'strong', science: 'Sun avoidance or covering up limits skin synthesis even at low latitudes.', sources: [SRC.nhsD],
+        })
+      }
+      // good sun + low latitude → genuinely not needed, so no card at all
+    } else {
+      const seasonal = !lowSun(p)
+      r.push({
+        id: 'vitd', name: 'Vitamin D', verdict: 'add',
+        badge: seasonal ? 'Worth taking · seasonal' : 'Worth taking',
+        why: seasonal
+          ? 'Worth it for the darker months — through summer, the daylight where you live likely covers you.'
+          : (p.latitude === 'high'
+              ? 'This far from the equator you get little winter daylight, and skin makes almost none — a daily dose is worth it, especially October to March.'
+              : 'You get limited daylight and winter levels dip — worth a daily dose, especially in winter.'),
+        evidence: 'strong',
+        science: 'At higher latitudes skin makes negligible vitamin D in winter, so cold-season supplementation is widely advised. On breast-cancer prevention, the large VITAL trial found no significant benefit — not a reason to take high doses.',
+        sources: [SRC.nhsD, SRC.vital],
+      })
+    }
   }
 
   // --- Omega-3: depends on diet and oily-fish frequency ---
@@ -105,10 +120,10 @@ export function profileRecs(p: CompleteProfile): Rec[] {
     r.push({
       id: 'creatine', name: 'Creatine', verdict: 'add', badge: 'Worth taking',
       why:
-        'The best-evidenced thing here for you. It preserves muscle and bone strength as you age' +
-        (femaleOlder ? ', with especially good evidence for women through the perimenopause years' : '') +
+        'One of the best-evidenced supplements for building and keeping muscle strength as you age — and promising, though less settled, for preserving bone' +
+        (femaleOlder ? ', where the emerging evidence for women through perimenopause is encouraging' : '') +
         '.' +
-        (goalHas(p, 'futurehealth') ? ' Since you flagged long-term health, this is the one with the most behind it.' : ''),
+        (goalHas(p, 'futurehealth') ? ' Given you flagged long-term health, it\'s a strong pick.' : ''),
       evidence: 'strong',
       science:
         'A 2-year RCT in 237 postmenopausal women found creatine plus resistance training preserved hip bone density better than placebo, with consistent lean-mass and strength gains in women 40+.',

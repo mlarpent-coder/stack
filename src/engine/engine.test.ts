@@ -4,17 +4,30 @@ import type { CompleteProfile } from './types'
 
 // A neutral baseline we override per-test, so each test states only what it depends on.
 const base: CompleteProfile = {
-  age: '40s', sex: 'female', diet: 'omnivore', fish: '1-2', sun: '2-3',
+  age: '40s', sex: 'female', diet: 'omnivore', fish: '1-2', sun: '2-3', latitude: 'high',
   alcohol: 'occasional', activity: 'moderate', sleep: 'good', periods: 'regular', safety: 'no',
   goal: [], prefs: [], taking: [],
 }
 const p = (over: Partial<CompleteProfile>): CompleteProfile => ({ ...base, ...over })
 const byId = <T extends { id: string }>(recs: T[], id: string): T | undefined => recs.find((r) => r.id === id)
 
-describe('vitamin D', () => {
-  it('is always recommended, seasonally when sun is high', () => {
-    expect(byId(profileRecs(p({ sun: '6-7' })), 'vitd')?.badge).toContain('seasonal')
-    expect(byId(profileRecs(p({ sun: '0-1' })), 'vitd')?.badge).not.toContain('seasonal')
+describe('vitamin D depends on latitude — never assumed', () => {
+  it('at high latitude: seasonal when sun is high, year-round when sun is low', () => {
+    expect(byId(profileRecs(p({ latitude: 'high', sun: '6-7' })), 'vitd')?.badge).toContain('seasonal')
+    expect(byId(profileRecs(p({ latitude: 'high', sun: '0-1' })), 'vitd')?.badge).not.toContain('seasonal')
+  })
+  it('the SAME sun-exposure gives a different answer in the tropics vs up north', () => {
+    // good sun near the equator → genuinely not needed, no card
+    expect(byId(profileRecs(p({ latitude: 'low', sun: '6-7' })), 'vitd')).toBeUndefined()
+    // same person up north → recommended
+    expect(byId(profileRecs(p({ latitude: 'high', sun: '6-7' })), 'vitd')?.verdict).toBe('add')
+  })
+  it('low latitude but rarely outside → still an optional nudge', () => {
+    expect(byId(profileRecs(p({ latitude: 'low', sun: '0-1' })), 'vitd')?.verdict).toBe('consider')
+  })
+  it('does not say "UK" for someone who is not in the UK', () => {
+    const rec = byId(profileRecs(p({ latitude: 'high', sun: '0-1' })), 'vitd')
+    expect(rec?.why).not.toMatch(/UK/)
   })
 })
 
