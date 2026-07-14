@@ -16,6 +16,15 @@ export type SupplementId =
   | 'vitd' | 'omega3' | 'omega369' | 'b12' | 'creatine'
   | 'magnesium' | 'vitc' | 'multi' | 'iron'
 
+/** The four blood markers that actually change a supplement recommendation.
+ *  Stored in canonical UK units; the parser + confirm step normalise to these. */
+export interface BloodMarkers {
+  vitD?: number     // 25-OH-D, nmol/L
+  ferritin?: number // µg/L
+  b12?: number      // serum B12, ng/L
+  folate?: number   // serum folate, µg/L
+}
+
 /** What the assessment collects. Optional fields are the ones asked later or that can be skipped. */
 export interface Profile {
   age?: Age
@@ -29,11 +38,12 @@ export interface Profile {
   goal: Goal[]
   prefs: Pref[]
   taking: SupplementId[]
+  blood?: BloodMarkers
 }
 
 /** A fully-answered profile — every gate answered. Produced once the assessment is complete. */
-export type CompleteProfile = Required<Omit<Profile, 'goal' | 'prefs' | 'taking'>> &
-  Pick<Profile, 'goal' | 'prefs' | 'taking'>
+export type CompleteProfile = Required<Omit<Profile, 'goal' | 'prefs' | 'taking' | 'blood'>> &
+  Pick<Profile, 'goal' | 'prefs' | 'taking' | 'blood'>
 
 /** Recommendation verdicts. Profile-derived recs use add/essential/consider/check;
  *  reconcile verdicts use keep/drop/adjust/check. */

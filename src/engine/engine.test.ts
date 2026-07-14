@@ -84,6 +84,42 @@ describe('reconciling the current stack', () => {
   })
 })
 
+describe('a blood result changes the answer (not just gets stored)', () => {
+  it('vitamin D: a low reading forces an Add; a high reading downgrades to Optional', () => {
+    const low = byId(profileRecs(p({ sun: '6-7', blood: { vitD: 18 } })), 'vitd')
+    expect(low?.verdict).toBe('add')
+    expect(low?.why).toContain('18')
+    const high = byId(profileRecs(p({ sun: '0-1', blood: { vitD: 92 } })), 'vitd')
+    // even with low sun, a sufficient reading overrides the guess
+    expect(high?.verdict).toBe('consider')
+  })
+
+  it('ferritin: a healthy reading resolves iron to "fine"; a low one flags the GP', () => {
+    const fine = byId(profileRecs(p({ sex: 'female', age: '30s', blood: { ferritin: 55 } })), 'iron')
+    expect(fine?.verdict).toBe('keep')
+    expect(fine?.badge).toMatch(/fine/i)
+    const low = byId(profileRecs(p({ sex: 'female', age: '30s', blood: { ferritin: 10 } })), 'iron')
+    expect(low?.verdict).toBe('check')
+    expect(low?.why).toMatch(/GP/)
+  })
+
+  it('ferritin reading gives the SAME answer in the report and when reconciling a taken iron pill', () => {
+    const prof = p({ sex: 'female', age: '30s', blood: { ferritin: 55 }, taking: ['iron'] })
+    expect(byId(profileRecs(prof), 'iron')?.verdict).toBe('keep')
+    expect(reconcileItem(prof, 'iron')?.verdict).toBe('keep')
+  })
+
+  it('a low B12 gets flagged for an omnivore who would otherwise see no B12 card', () => {
+    expect(byId(profileRecs(p({ diet: 'omnivore' })), 'b12')).toBeUndefined()
+    expect(byId(profileRecs(p({ diet: 'omnivore', blood: { b12: 150 } })), 'b12')?.badge).toBe('Low')
+  })
+
+  it('does not double-card B12 when a vegan already has an essential B12 rec', () => {
+    const recs = profileRecs(p({ diet: 'vegan', blood: { b12: 150 } }))
+    expect(recs.filter((r) => r.id === 'b12')).toHaveLength(1)
+  })
+})
+
 describe('buildPlan assembles keep / drop / add correctly', () => {
   it('an omnivore taking vit C + omega-3-6-9 keeps nothing new, drops both, and gains adds', () => {
     const prof = p({ fish: '3plus', activity: 'very', taking: ['vitc', 'omega369'] })

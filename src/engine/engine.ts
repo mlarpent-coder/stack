@@ -17,26 +17,48 @@ export const lowSun = (p: CompleteProfile) => p.sun === '0-1' || p.sun === '2-3'
 export const isPlant = (p: CompleteProfile) => p.diet === 'vegan' || p.diet === 'vegetarian'
 const goalHas = (p: CompleteProfile, g: string) => p.goal.includes(g as never)
 
-const VERDICT_ORDER: Record<string, number> = { essential: 0, add: 1, consider: 2, check: 3 }
+const VERDICT_ORDER: Record<string, number> = { essential: 0, add: 1, consider: 2, check: 3, keep: 4 }
+
+/** Turn a real ferritin reading into an iron verdict. Shared by the report and the reconcile step
+ *  so an uploaded blood result gives ONE consistent answer in both places. */
+function ironFromBlood(fer: number): { verdict: 'check' | 'keep'; badge: string; why: string } {
+  if (fer < 15) return { verdict: 'check', badge: 'Low — see your GP', why: `Your ferritin (${fer} µg/L) is low — that's iron deficiency. Worth addressing, but through your GP rather than blind supplements.` }
+  if (fer < 30) return { verdict: 'check', badge: 'Borderline', why: `Your ferritin (${fer} µg/L) is on the low side — worth a word with your GP. Borderline stores, not clearly deficient.` }
+  return { verdict: 'keep', badge: 'Iron looks fine', why: `Your ferritin (${fer} µg/L) is healthy — no need to supplement iron.` }
+}
 
 /** What's worth taking, derived from the profile only. Never presupposes the current stack. */
 export function profileRecs(p: CompleteProfile): Rec[] {
   const r: Rec[] = []
 
-  // --- Vitamin D: worth it for everyone at UK latitude; wording turns on sun ---
-  r.push({
-    id: 'vitd',
-    name: 'Vitamin D',
-    verdict: 'add',
-    badge: lowSun(p) ? 'Worth taking' : 'Worth taking · seasonal',
-    why: lowSun(p)
-      ? 'At UK latitude you get little daylight, and skin makes almost none in winter — the NHS suggests it for everyone in autumn and winter.'
-      : 'Worth it for the darker months (Oct–Mar). Through summer, the daylight you get likely covers you.',
-    evidence: 'strong',
-    science:
-      'UK skin makes negligible vitamin D from October to March, so winter supplementation is widely advised. On breast-cancer prevention, the large VITAL trial found no significant benefit — not a reason to take high doses.',
-    sources: [SRC.nhsD, SRC.vital],
-  })
+  // --- Vitamin D: a real 25-OH-D reading beats the sun-exposure guess ---
+  const d = p.blood?.vitD
+  if (d != null) {
+    let verdict: 'add' | 'consider' = 'add'
+    let badge: string
+    let why: string
+    if (d < 25) { badge = "Add — you're low"; why = `Your vitamin D came back at ${d} nmol/L — below the deficiency threshold. Worth correcting properly, ideally via your GP (a short loading course, then a daily maintenance dose).` }
+    else if (d < 50) { badge = 'Add'; why = `Your level (${d} nmol/L) is on the low side of normal — a daily 10–25 µg tops it up.` }
+    else if (d <= 75) { verdict = 'consider'; badge = 'Optional · winter'; why = `Your level (${d} nmol/L) is adequate — no urgent need, though a low winter dose keeps it steady through the darker months.` }
+    else { verdict = 'consider'; badge = "You're topped up"; why = `Your level (${d} nmol/L) is comfortably sufficient — you don't need much beyond maybe a low winter dose.` }
+    r.push({
+      id: 'vitd', name: 'Vitamin D', verdict, badge, why, evidence: 'strong',
+      science: 'Vitamin D status is best read directly from 25-OH-D. UK guidance treats <25 nmol/L as deficient and ~50+ as sufficient — so a reading replaces any guesswork from sun exposure.',
+      sources: [SRC.nhsD, SRC.vital],
+    })
+  } else {
+    r.push({
+      id: 'vitd', name: 'Vitamin D', verdict: 'add',
+      badge: lowSun(p) ? 'Worth taking' : 'Worth taking · seasonal',
+      why: lowSun(p)
+        ? 'At UK latitude you get little daylight, and skin makes almost none in winter — the NHS suggests it for everyone in autumn and winter.'
+        : 'Worth it for the darker months (Oct–Mar). Through summer, the daylight you get likely covers you.',
+      evidence: 'strong',
+      science:
+        'UK skin makes negligible vitamin D from October to March, so winter supplementation is widely advised. On breast-cancer prevention, the large VITAL trial found no significant benefit — not a reason to take high doses.',
+      sources: [SRC.nhsD, SRC.vital],
+    })
+  }
 
   // --- Omega-3: depends on diet and oily-fish frequency ---
   if (isPlant(p)) {
@@ -114,12 +136,29 @@ export function profileRecs(p: CompleteProfile): Rec[] {
     })
   }
 
-  // --- Iron: a "get tested first", never a blind add ---
-  if (childbearing(p)) {
+  // --- Iron: a real ferritin reading resolves the "get tested" into an answer ---
+  const fer = p.blood?.ferritin
+  if (fer != null) {
+    const v = ironFromBlood(fer)
+    r.push({
+      id: 'iron', name: 'Iron', verdict: v.verdict, badge: v.badge, why: v.why, evidence: 'strong',
+      science: 'Ferritin reflects iron stores; supplement only when low, and ideally with clinical guidance.', sources: [SRC.nhsVit],
+    })
+  } else if (childbearing(p)) {
     r.push({
       id: 'iron', name: 'Iron — get it checked first', verdict: 'check', badge: 'Get tested',
       why: "Menstruating women are the group most likely to run low on iron — so it's worth a ferritin blood test. Never supplement iron blind; too much is harmful.",
       evidence: 'strong', science: 'Iron status should be confirmed by ferritin before supplementing; unnecessary iron causes harm.', sources: [SRC.nhsVit],
+    })
+  }
+
+  // --- B12: a low reading gets flagged (unless a diet-based B12 rec is already present) ---
+  const b12 = p.blood?.b12
+  if (b12 != null && b12 < 200 && !r.some((x) => x.id === 'b12')) {
+    r.push({
+      id: 'b12', name: 'Vitamin B12', verdict: 'check', badge: 'Low',
+      why: `Your B12 (${b12} ng/L) is low — worth addressing, and worth your GP checking why.`,
+      evidence: 'strong', science: 'Serum B12 below ~200 ng/L suggests deficiency and merits follow-up.', sources: [SRC.nhsB12],
     })
   }
 
@@ -154,8 +193,11 @@ export function reconcileItem(p: CompleteProfile, id: SupplementId): ReconItem |
       return isPlant(p)
         ? { id, name: 'Vitamin B12', verdict: 'keep', why: 'Keep it — essential on a plant-based diet.' }
         : { id, name: 'Vitamin B12', verdict: 'drop', why: "Eating animal products, you're almost certainly getting enough already — drop unless a test showed low." }
-    case 'iron':
+    case 'iron': {
+      const fer = p.blood?.ferritin
+      if (fer != null) { const v = ironFromBlood(fer); return { id, name: 'Iron', verdict: v.verdict, why: v.why } }
       return { id, name: 'Iron', verdict: 'check', why: "Only keep taking this if a blood test showed you're low — iron when you're replete is genuinely harmful." }
+    }
     default:
       return null
   }
