@@ -25,7 +25,7 @@ const QUESTIONS: { key: keyof Profile; label: string; hint?: string; options: [s
   { key: 'latitude', label: 'Where do you live?', hint: 'Roughly how far from the equator — it changes your vitamin D. Pick by the closest match.', options: [['high', 'UK, Ireland, most of N. Europe, Canada, northern US, northern France'], ['mid', 'Med & S. Europe — southern France, Spain, Italy, Greece, or the central/southern US'], ['low', 'Tropics or somewhere sunny year-round']] },
   { key: 'alcohol', label: 'Alcohol', options: [['none', 'None'], ['occasional', 'Occasionally'], ['fewweekly', 'A few a week'], ['mostdays', 'Most days']] },
   { key: 'activity', label: 'How active you are', options: [['sedentary', 'Mostly sedentary'], ['light', 'Lightly active'], ['moderate', 'Moderate'], ['very', 'Very active']] },
-  { key: 'strength', label: 'Do you do any strength training?', hint: 'Weights, resistance machines, or bodyweight work like push-ups and squats — anything working your muscles against resistance. (Cardio like running or cycling doesn’t count here.)', options: [['none', 'No, none'], ['some', 'Now and then'], ['regular', 'Regularly — 2+ times a week']] },
+  { key: 'strength', label: 'Do you do any strength training?', hint: 'Weights, resistance machines, or bodyweight work like push-ups and squats — anything working your muscles against resistance. (Cardio like running or cycling doesn’t count here.)', options: [['none', 'No, none'], ['some', 'Occasionally — up to once a week'], ['regular', 'Regularly — 2+ times a week']] },
   { key: 'sleep', label: 'How you sleep', options: [['good', 'Sleeping well'], ['patchy', 'A bit patchy'], ['poor', 'Sleeping badly']] },
 ]
 

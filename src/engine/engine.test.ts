@@ -56,11 +56,14 @@ describe('B12', () => {
 })
 
 describe('creatine — gated on resistance training, not general activity', () => {
-  it('is a strong add for people who strength-train regularly', () => {
+  it('gives three genuinely distinct answers across the tiers', () => {
+    // regular → confident add; occasional → softer consider; none → no card at all
     expect(byId(profileRecs(p({ strength: 'regular' })), 'creatine')?.verdict).toBe('add')
+    expect(byId(profileRecs(p({ strength: 'some' })), 'creatine')?.verdict).toBe('consider')
+    expect(byId(profileRecs(p({ strength: 'none' })), 'creatine')).toBeUndefined()
   })
-  it('is also an add for occasional strength work', () => {
-    expect(byId(profileRecs(p({ strength: 'some' })), 'creatine')?.verdict).toBe('add')
+  it('the occasional-training copy flags that consistency is what earns it', () => {
+    expect(byId(profileRecs(p({ strength: 'some' })), 'creatine')?.why).toMatch(/consistent/)
   })
   it('shows NO card for someone who does no strength training, however much cardio they do', () => {
     // a very-active endurance type who never lifts → no creatine card (an aside handles it in the UI)

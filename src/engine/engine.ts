@@ -178,11 +178,15 @@ export function profileRecs(p: CompleteProfile): Rec[] {
   if (p.strength === 'regular' || p.strength === 'some') {
     const consistent = p.strength === 'regular'
     r.push({
-      id: 'creatine', name: 'Creatine', verdict: 'add', badge: 'Worth taking',
+      id: 'creatine', name: 'Creatine',
+      // Benefit scales with training stimulus: regular training earns a confident "add";
+      // occasional training sits genuinely between yes and no → a softer "consider".
+      verdict: consistent ? 'add' : 'consider',
+      badge: consistent ? 'Worth taking' : 'Consider',
       why:
         'One of the best-evidenced supplements for building and keeping muscle strength as you age — and promising, though less settled, for preserving bone' +
         (femaleOlder ? ', where the emerging evidence for women through perimenopause is encouraging' : '') +
-        '. It pairs with your ' + (consistent ? 'regular strength training.' : 'strength work — the more consistent the training, the more it delivers.') +
+        '. It pairs with your ' + (consistent ? 'regular strength training.' : 'occasional strength work — but the more consistent the training, the more it delivers, so this is a nice-to-have until you train more regularly.') +
         (goalHas(p, 'futurehealth') ? ' Given you flagged long-term health, it\'s a strong pick.' : ''),
       evidence: 'strong',
       science:
