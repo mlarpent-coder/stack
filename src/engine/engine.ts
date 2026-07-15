@@ -172,28 +172,25 @@ export function profileRecs(p: CompleteProfile): Rec[] {
     })
   }
 
-  // --- Creatine: strong for the active; a "consider" otherwise ---
+  // --- Creatine: earns its place ONLY alongside resistance training, not general activity.
+  // Someone with no strength work (however much cardio) gets no card — just an honest aside. ---
   const femaleOlder = p.sex === 'female' && (p.age === '40s' || p.age === '50s' || p.age === '60plus')
-  if (isActive(p)) {
+  if (p.strength === 'regular' || p.strength === 'some') {
+    const consistent = p.strength === 'regular'
     r.push({
       id: 'creatine', name: 'Creatine', verdict: 'add', badge: 'Worth taking',
       why:
         'One of the best-evidenced supplements for building and keeping muscle strength as you age — and promising, though less settled, for preserving bone' +
         (femaleOlder ? ', where the emerging evidence for women through perimenopause is encouraging' : '') +
-        '.' +
+        '. It pairs with your ' + (consistent ? 'regular strength training.' : 'strength work — the more consistent the training, the more it delivers.') +
         (goalHas(p, 'futurehealth') ? ' Given you flagged long-term health, it\'s a strong pick.' : ''),
       evidence: 'strong',
       science:
-        'A 2-year RCT in 237 postmenopausal women found creatine plus resistance training preserved hip bone density better than placebo, with consistent lean-mass and strength gains in women 40+.',
+        'Creatine\'s benefits are strongest paired with resistance exercise; without training the effect is much smaller. A 2-year RCT in 237 postmenopausal women found creatine plus resistance training preserved hip bone density better than placebo, with consistent lean-mass and strength gains in women 40+.',
       sources: [SRC.exCre],
     })
-  } else {
-    r.push({
-      id: 'creatine', name: 'Creatine', verdict: 'consider', badge: 'Consider',
-      why: 'Helps preserve muscle and bone with age — but it earns its keep most alongside some resistance training. If you add strength work, move this up.',
-      evidence: 'strong', science: "Creatine's benefits are strongest paired with resistance exercise; without training the effect is smaller.", sources: [SRC.exCre],
-    })
   }
+  // p.strength === 'none' → no creatine card; the report shows an aside pointing at the real lever.
 
   // --- Protein: weight-based, and only when there's a real gap to fill (food first) ---
   const prot = proteinNeed(p)
@@ -302,6 +299,10 @@ export function reconcileItem(p: CompleteProfile, id: SupplementId): ReconItem |
       return isPlant(p)
         ? { id, name: 'Vitamin B12', verdict: 'keep', why: 'Keep it — essential on a plant-based diet.' }
         : { id, name: 'Vitamin B12', verdict: 'drop', why: "Eating animal products, you're almost certainly getting enough already — drop unless a test showed low." }
+    case 'creatine':
+      return (p.strength === 'regular' || p.strength === 'some')
+        ? { id, name: 'Creatine', verdict: 'keep', why: 'Keep it — it earns its place alongside your strength training.' }
+        : { id, name: 'Creatine', verdict: 'drop', why: "Without any resistance training, creatine does little — the effect really needs the training alongside. Worth pausing until you're lifting; then it's one of the best things you can take." }
     case 'protein': {
       const prot = proteinNeed(p)
       if (!prot) return { id, name: 'Protein powder', verdict: 'keep', why: "Protein powder is just food — fine to keep. (Add your weight and rough intake and we'll tell you whether you actually need it.)" }
@@ -347,6 +348,8 @@ function applySafetyRecon(item: ReconItem, p: CompleteProfile): ReconItem {
     return { ...item, verdict: 'check', why: "You're on blood thinners — fish oil can add to bleeding risk; check with your GP before continuing." }
   if (hasCond(p, 'kidney') && item.id === 'magnesium')
     return { ...item, verdict: 'check', why: 'You flagged kidney disease — magnesium can accumulate; check with your GP.' }
+  if (hasCond(p, 'kidney') && item.id === 'creatine' && item.verdict !== 'drop')
+    return { ...item, verdict: 'check', why: 'You flagged kidney disease — check with your GP before continuing creatine.' }
   if (hasCond(p, 'kidney') && item.id === 'protein')
     return { ...item, verdict: 'check', why: 'You flagged kidney disease — a high protein load can strain the kidneys; agree your target with your GP before relying on a powder.' }
   if (hasCond(p, 'thyroidmeds') && item.id === 'iron' && item.verdict !== 'drop')

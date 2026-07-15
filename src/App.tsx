@@ -6,7 +6,7 @@ import { Ambient, Brand, Progress, Question, RecCard, SwipeDeck, HowGrid } from 
 
 type Screen = 'intro' | 'assess' | 'report' | 'current' | 'swipe' | 'plan'
 
-const REQUIRED: (keyof Profile)[] = ['age', 'sex', 'diet', 'fish', 'sun', 'latitude', 'alcohol', 'activity', 'sleep']
+const REQUIRED: (keyof Profile)[] = ['age', 'sex', 'diet', 'fish', 'sun', 'latitude', 'alcohol', 'activity', 'strength', 'sleep']
 
 const CONDITIONS: [string, string][] = [
   ['kidney', 'Kidney disease'], ['bloodthinners', 'Blood thinners'],
@@ -22,9 +22,10 @@ const QUESTIONS: { key: keyof Profile; label: string; hint?: string; options: [s
   { key: 'diet', label: 'How you eat', options: [['omnivore', 'Omnivore'], ['pescatarian', 'Pescatarian'], ['vegetarian', 'Vegetarian'], ['vegan', 'Vegan']] },
   { key: 'fish', label: 'How often you eat oily fish', hint: 'Salmon, mackerel, sardines, trout', options: [['never', 'Never'], ['subweekly', 'Less than weekly'], ['1-2', '1–2× a week'], ['3plus', '3+ a week']] },
   { key: 'sun', label: 'Days a week with skin in daylight, ~1hr+', hint: 'Arms or face — not through a window', options: [['0-1', '0–1'], ['2-3', '2–3'], ['4-5', '4–5'], ['6-7', '6–7']] },
-  { key: 'latitude', label: 'Where do you live?', hint: 'Pick whichever’s closest — it changes your vitamin D', options: [['high', 'UK, N. Europe, Canada, northern US'], ['mid', 'S. Europe, southern US or similar'], ['low', 'Tropics or somewhere sunny year-round']] },
+  { key: 'latitude', label: 'Where do you live?', hint: 'Roughly how far from the equator — it changes your vitamin D. Pick by the closest match.', options: [['high', 'UK, Ireland, most of N. Europe, Canada, northern US, northern France'], ['mid', 'Med & S. Europe — southern France, Spain, Italy, Greece, or the central/southern US'], ['low', 'Tropics or somewhere sunny year-round']] },
   { key: 'alcohol', label: 'Alcohol', options: [['none', 'None'], ['occasional', 'Occasionally'], ['fewweekly', 'A few a week'], ['mostdays', 'Most days']] },
   { key: 'activity', label: 'How active you are', options: [['sedentary', 'Mostly sedentary'], ['light', 'Lightly active'], ['moderate', 'Moderate'], ['very', 'Very active']] },
+  { key: 'strength', label: 'Do you do any strength training?', hint: 'Weights, resistance machines, or bodyweight work like push-ups and squats — anything working your muscles against resistance. (Cardio like running or cycling doesn’t count here.)', options: [['none', 'No, none'], ['some', 'Now and then'], ['regular', 'Regularly — 2+ times a week']] },
   { key: 'sleep', label: 'How you sleep', options: [['good', 'Sleeping well'], ['patchy', 'A bit patchy'], ['poor', 'Sleeping badly']] },
 ]
 
@@ -36,11 +37,11 @@ const BLOOD_FIELDS: { k: keyof BloodMarkers; label: string; unit: string; ph: st
 ]
 
 const GOALS: [string, string][] = [['energy', 'Energy'], ['sleep', 'Sleep'], ['futurehealth', 'Long-term health'], ['skin', 'Skin'], ['immunity', 'Immunity']]
-const PREFS: [string, string][] = [['coffee', 'Not in my coffee'], ['nolarge', 'No large pills'], ['powder', 'Powders are fine']]
+const PREFS: [string, string][] = [['coffee', 'Not in my coffee'], ['nolarge', 'No large pills'], ['anyformat', 'Happy with any format']]
 const TAKING: [string, string][] = [
   ['vitd', 'Vitamin D'], ['omega369', 'Omega 3-6-9'], ['omega3', 'Omega-3 / fish oil'], ['vitc', 'Vitamin C'],
   ['multi', 'Multivitamin'], ['magnesium', 'Magnesium'], ['b12', 'B12'], ['iron', 'Iron'],
-  ['protein', 'Protein powder'],
+  ['creatine', 'Creatine'], ['protein', 'Protein powder'],
 ]
 
 const PROTEIN_OPTS: [string, string][] = [
@@ -79,6 +80,14 @@ export default function App() {
       const arr = p[key] as string[]
       return { ...p, [key]: arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val] }
     })
+  // "Happy with any format" is mutually exclusive with the specific constraints.
+  function togglePref(val: string) {
+    setProfile((p) => {
+      if (val === 'anyformat') return { ...p, prefs: p.prefs.includes('anyformat') ? [] : ['anyformat'] }
+      const cur = p.prefs.filter((x) => x !== 'anyformat')
+      return { ...p, prefs: cur.includes(val as never) ? cur.filter((x) => x !== val) : [...cur, val as never] }
+    })
+  }
   function toggleTaking(id: string) {
     if (id === 'none') { setProfile((p) => ({ ...p, taking: [] })); setNone(true); return }
     setNone(false)
@@ -175,7 +184,7 @@ export default function App() {
             <Question label="What's on your mind?" optional hint="Pick any that apply" multi options={GOALS}
               value={profile.goal} onSelect={(v) => toggle('goal', v)} />
             <Question label="Any way you won't take things?" optional multi options={PREFS}
-              value={profile.prefs} onSelect={(v) => toggle('prefs', v)} />
+              value={profile.prefs} onSelect={togglePref} />
 
             <div className="q">
               <div className="lab">Your weight<span className="opt">optional</span></div>
@@ -279,6 +288,13 @@ export default function App() {
               <div className="aside">
                 <b>On sleep:</b> the biggest levers are a steady schedule, morning daylight and cutting caffeine after
                 midday — more than any supplement. Anything here is a small add on top.
+              </div>
+            )}
+            {profile.strength === 'none' && (
+              <div className="aside">
+                <b>On creatine:</b> it's the best-evidenced supplement there is for muscle and strength — but it only
+                works alongside resistance training, which you're not doing right now. The real win is starting some
+                strength work; add that and creatine becomes a strong pick. On its own, it does little.
               </div>
             )}
             <div className="actions">

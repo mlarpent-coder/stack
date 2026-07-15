@@ -6,7 +6,7 @@ import type { CompleteProfile } from './types'
 // A neutral baseline we override per-test, so each test states only what it depends on.
 const base: CompleteProfile = {
   age: '40s', sex: 'female', diet: 'omnivore', fish: '1-2', sun: '2-3', latitude: 'high',
-  alcohol: 'occasional', activity: 'moderate', sleep: 'good', periods: 'regular', pregnancy: 'no',
+  alcohol: 'occasional', activity: 'moderate', strength: 'regular', sleep: 'good', periods: 'regular', pregnancy: 'no',
   goal: [], prefs: [], conditions: [], taking: [],
 }
 const p = (over: Partial<CompleteProfile>): CompleteProfile => ({ ...base, ...over })
@@ -55,12 +55,21 @@ describe('B12', () => {
   })
 })
 
-describe('creatine', () => {
-  it('is a strong add for active people', () => {
-    expect(byId(profileRecs(p({ activity: 'very' })), 'creatine')?.verdict).toBe('add')
+describe('creatine — gated on resistance training, not general activity', () => {
+  it('is a strong add for people who strength-train regularly', () => {
+    expect(byId(profileRecs(p({ strength: 'regular' })), 'creatine')?.verdict).toBe('add')
   })
-  it('drops to "consider" for the sedentary — never disappears', () => {
-    expect(byId(profileRecs(p({ activity: 'sedentary' })), 'creatine')?.verdict).toBe('consider')
+  it('is also an add for occasional strength work', () => {
+    expect(byId(profileRecs(p({ strength: 'some' })), 'creatine')?.verdict).toBe('add')
+  })
+  it('shows NO card for someone who does no strength training, however much cardio they do', () => {
+    // a very-active endurance type who never lifts → no creatine card (an aside handles it in the UI)
+    expect(byId(profileRecs(p({ activity: 'very', strength: 'none' })), 'creatine')).toBeUndefined()
+    expect(byId(profileRecs(p({ activity: 'sedentary', strength: 'none' })), 'creatine')).toBeUndefined()
+  })
+  it('reconcile keeps creatine for someone who trains, drops it for someone who doesn’t', () => {
+    expect(reconcileItem(p({ strength: 'regular' }), 'creatine')?.verdict).toBe('keep')
+    expect(reconcileItem(p({ strength: 'none' }), 'creatine')?.verdict).toBe('drop')
   })
 })
 

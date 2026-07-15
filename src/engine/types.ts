@@ -9,6 +9,8 @@ export type Sun = '0-1' | '2-3' | '4-5' | '6-7'
 export type Latitude = 'high' | 'mid' | 'low' // how far from the equator — drives winter vitamin D
 export type Alcohol = 'none' | 'occasional' | 'fewweekly' | 'mostdays'
 export type Activity = 'sedentary' | 'light' | 'moderate' | 'very'
+/** Resistance training specifically — the driver that actually earns creatine, distinct from general activity. */
+export type Strength = 'none' | 'some' | 'regular'
 export type Sleep = 'good' | 'patchy' | 'poor'
 /** Rough daily protein intake, described by eating pattern so it's answerable without weighing food. */
 export type ProteinIntake = 'low' | 'some' | 'moderate' | 'high'
@@ -16,7 +18,7 @@ export type Periods = 'regular' | 'light' | 'none'
 export type YesNo = 'yes' | 'no'
 
 export type Goal = 'energy' | 'sleep' | 'futurehealth' | 'skin' | 'immunity'
-export type Pref = 'coffee' | 'nolarge' | 'powder'
+export type Pref = 'coffee' | 'nolarge' | 'anyformat'
 export type Pregnancy = 'no' | 'trying' | 'pregnant'
 /** The medication/condition flags that genuinely change a supplement recommendation. */
 export type Condition = 'kidney' | 'bloodthinners' | 'ironoverload' | 'thyroidmeds' | 'other' | 'none'
@@ -43,6 +45,7 @@ export interface Profile {
   latitude?: Latitude
   alcohol?: Alcohol
   activity?: Activity
+  strength?: Strength // resistance training — drives the creatine call
   sleep?: Sleep
   weightKg?: number // optional, skippable — only used to size the protein target
   protein?: ProteinIntake // optional, skippable — rough daily protein intake
