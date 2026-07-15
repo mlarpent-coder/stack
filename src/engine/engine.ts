@@ -22,6 +22,27 @@ const hasCond = (p: CompleteProfile, c: string) => p.conditions.includes(c as ne
 
 const VERDICT_ORDER: Record<string, number> = { essential: 0, add: 1, consider: 2, check: 3, keep: 4, drop: 5 }
 
+// --- Protein: the one recommendation that genuinely scales with bodyweight. ---
+// Intake is estimated from an eating-pattern band (no food-weighing), so both sides are
+// deliberately rough — we only ever surface protein when the gap is clearly meaningful.
+const PROTEIN_EST: Record<string, number> = { low: 45, some: 70, moderate: 95, high: 125 }
+
+export interface ProteinNeed { target: number; est: number; gap: number; factor: number; older: boolean }
+
+/** Weight-based protein target vs an estimated intake. Returns null if either input was skipped —
+ *  we never guess weight or intake, so with a gap we can't compute, protein simply isn't surfaced.
+ *  Targets: 0.8 g/kg RDA baseline; ~1.2 g/kg for the active or the over-50s (sarcopenia); ~1.6 g/kg
+ *  for the very active, within the 1.4–2.0 g/kg range for people training hard. */
+export function proteinNeed(p: CompleteProfile): ProteinNeed | null {
+  const w = p.weightKg
+  if (w == null || w <= 0 || !p.protein) return null
+  const est = PROTEIN_EST[p.protein]
+  const older = p.age === '50s' || p.age === '60plus'
+  const factor = p.activity === 'very' ? 1.6 : (p.activity === 'moderate' || older) ? 1.2 : 0.8
+  const target = Math.round(w * factor)
+  return { target, est, gap: target - est, factor, older }
+}
+
 /** Safety pass: real contraindications that MODIFY a recommendation, not just warn beside it.
  *  Runs after the profile rules so the base logic stays readable. */
 function applySafety(recs: Rec[], p: CompleteProfile): Rec[] {
@@ -32,6 +53,9 @@ function applySafety(recs: Rec[], p: CompleteProfile): Rec[] {
   return recs.map((rec): Rec => {
     if (kidney && (rec.id === 'creatine' || rec.id === 'magnesium')) {
       return { ...rec, verdict: 'check', badge: 'Not without your GP', why: `You flagged kidney disease — ${rec.name.toLowerCase()} can be a problem for the kidneys, so don't start it without your doctor's OK.` }
+    }
+    if (kidney && rec.id === 'protein') {
+      return { ...rec, verdict: 'check', badge: 'Check with your GP', why: 'You flagged kidney disease — a high protein intake can strain the kidneys, so agree your protein target with your doctor before adding to it.' }
     }
     if (bleed && rec.id === 'omega3') {
       return { ...rec, verdict: 'check', badge: 'Check with your GP', why: "You're on blood thinners — fish or algal oil can add to bleeding risk, so clear it with your GP before starting." }
@@ -171,6 +195,29 @@ export function profileRecs(p: CompleteProfile): Rec[] {
     })
   }
 
+  // --- Protein: weight-based, and only when there's a real gap to fill (food first) ---
+  const prot = proteinNeed(p)
+  if (prot && prot.gap >= 15) {
+    // 'add' only when the gap is sizeable AND there's a reason to aim above the RDA;
+    // otherwise a gentle 'consider' that points at food before powder.
+    const strong = prot.gap >= 30 && prot.factor > 0.8
+    const driver = p.activity === 'very' ? 'training hard' : isActive(p) ? 'being active' : prot.older ? 'being over 50' : 'your body'
+    const plant = isPlant(p)
+    r.push({
+      id: 'protein', name: plant ? 'Protein (plant blend)' : 'Protein', verdict: strong ? 'add' : 'consider',
+      badge: strong ? 'Worth adding' : 'Consider',
+      why:
+        `At roughly ${p.weightKg} kg and ${driver}, a sensible target is about ${prot.target} g of protein a day — ` +
+        `your intake looks closer to ~${prot.est} g, a gap of roughly ${prot.gap} g. ` +
+        'Food comes first (an extra egg, yoghurt, tin of beans or palm of meat/fish all count) — ' +
+        (plant ? 'a pea/soy protein shake is just the easy way to close what food doesn’t.' : 'a scoop of protein powder is just the easy way to close what food doesn’t.'),
+      evidence: 'strong',
+      science:
+        'Protein needs scale with bodyweight: ~0.8 g/kg/day covers the basics, but ~1.2 g/kg helps active and older adults hold onto muscle, and 1.4–2.0 g/kg suits people training hard. Powder isn’t magic — it’s just convenient food.',
+      sources: [SRC.exProtein],
+    })
+  }
+
   // --- Magnesium: only when training load or alcohol justifies it ---
   if (p.activity === 'very' || p.alcohol === 'mostdays') {
     const drivers =
@@ -255,6 +302,13 @@ export function reconcileItem(p: CompleteProfile, id: SupplementId): ReconItem |
       return isPlant(p)
         ? { id, name: 'Vitamin B12', verdict: 'keep', why: 'Keep it — essential on a plant-based diet.' }
         : { id, name: 'Vitamin B12', verdict: 'drop', why: "Eating animal products, you're almost certainly getting enough already — drop unless a test showed low." }
+    case 'protein': {
+      const prot = proteinNeed(p)
+      if (!prot) return { id, name: 'Protein powder', verdict: 'keep', why: "Protein powder is just food — fine to keep. (Add your weight and rough intake and we'll tell you whether you actually need it.)" }
+      return prot.gap >= 15
+        ? { id, name: 'Protein powder', verdict: 'keep', why: `Earns its place — it helps close a real gap (roughly ${prot.gap} g/day short of a ~${prot.target} g target for your body).` }
+        : { id, name: 'Protein powder', verdict: 'drop', why: `You're already around your ~${prot.target} g/day target from food — the powder's a convenience, not a need. Fine to keep, but nothing here demands it.` }
+    }
     case 'iron': {
       const fer = p.blood?.ferritin
       if (fer != null) { const v = ironFromBlood(fer); return { id, name: 'Iron', verdict: v.verdict, why: v.why } }
@@ -293,6 +347,8 @@ function applySafetyRecon(item: ReconItem, p: CompleteProfile): ReconItem {
     return { ...item, verdict: 'check', why: "You're on blood thinners — fish oil can add to bleeding risk; check with your GP before continuing." }
   if (hasCond(p, 'kidney') && item.id === 'magnesium')
     return { ...item, verdict: 'check', why: 'You flagged kidney disease — magnesium can accumulate; check with your GP.' }
+  if (hasCond(p, 'kidney') && item.id === 'protein')
+    return { ...item, verdict: 'check', why: 'You flagged kidney disease — a high protein load can strain the kidneys; agree your target with your GP before relying on a powder.' }
   if (hasCond(p, 'thyroidmeds') && item.id === 'iron' && item.verdict !== 'drop')
     return { ...item, why: item.why + ' Keep it 4h apart from your thyroid tablet.' }
   return item

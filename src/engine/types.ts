@@ -10,6 +10,8 @@ export type Latitude = 'high' | 'mid' | 'low' // how far from the equator — dr
 export type Alcohol = 'none' | 'occasional' | 'fewweekly' | 'mostdays'
 export type Activity = 'sedentary' | 'light' | 'moderate' | 'very'
 export type Sleep = 'good' | 'patchy' | 'poor'
+/** Rough daily protein intake, described by eating pattern so it's answerable without weighing food. */
+export type ProteinIntake = 'low' | 'some' | 'moderate' | 'high'
 export type Periods = 'regular' | 'light' | 'none'
 export type YesNo = 'yes' | 'no'
 
@@ -20,7 +22,7 @@ export type Pregnancy = 'no' | 'trying' | 'pregnant'
 export type Condition = 'kidney' | 'bloodthinners' | 'ironoverload' | 'thyroidmeds' | 'other' | 'none'
 export type SupplementId =
   | 'vitd' | 'omega3' | 'omega369' | 'b12' | 'creatine'
-  | 'magnesium' | 'vitc' | 'multi' | 'iron' | 'folate'
+  | 'magnesium' | 'vitc' | 'multi' | 'iron' | 'folate' | 'protein'
 
 /** The four blood markers that actually change a supplement recommendation.
  *  Stored in canonical UK units; the parser + confirm step normalise to these. */
@@ -42,6 +44,8 @@ export interface Profile {
   alcohol?: Alcohol
   activity?: Activity
   sleep?: Sleep
+  weightKg?: number // optional, skippable — only used to size the protein target
+  protein?: ProteinIntake // optional, skippable — rough daily protein intake
   periods?: Periods // only relevant when sex === 'female'
   pregnancy?: Pregnancy // only relevant when sex === 'female'
   goal: Goal[]
@@ -53,8 +57,8 @@ export interface Profile {
 
 /** A fully-answered profile — every gate answered. Produced once the assessment is complete. */
 export type CompleteProfile =
-  Required<Omit<Profile, 'goal' | 'prefs' | 'taking' | 'conditions' | 'blood' | 'sleep' | 'periods' | 'pregnancy'>> &
-  Pick<Profile, 'goal' | 'prefs' | 'taking' | 'conditions' | 'blood' | 'sleep' | 'periods' | 'pregnancy'>
+  Required<Omit<Profile, 'goal' | 'prefs' | 'taking' | 'conditions' | 'blood' | 'sleep' | 'periods' | 'pregnancy' | 'weightKg' | 'protein'>> &
+  Pick<Profile, 'goal' | 'prefs' | 'taking' | 'conditions' | 'blood' | 'sleep' | 'periods' | 'pregnancy' | 'weightKg' | 'protein'>
 
 /** Recommendation verdicts. Profile-derived recs use add/essential/consider/check;
  *  reconcile verdicts use keep/drop/adjust/check. */

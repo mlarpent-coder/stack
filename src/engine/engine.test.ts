@@ -64,6 +64,46 @@ describe('creatine', () => {
   })
 })
 
+describe('protein — weight-based, only when there is a real gap', () => {
+  it('is silent unless BOTH weight and intake are given (we never guess either)', () => {
+    expect(byId(profileRecs(p({ weightKg: 90, protein: undefined })), 'protein')).toBeUndefined()
+    expect(byId(profileRecs(p({ weightKg: undefined, protein: 'low' })), 'protein')).toBeUndefined()
+  })
+  it('a heavy, very-active person eating little protein gets a strong add, with numbers', () => {
+    const rec = byId(profileRecs(p({ weightKg: 90, activity: 'very', protein: 'low' })), 'protein')
+    expect(rec?.verdict).toBe('add')           // 90*1.6=144 target vs ~45 intake
+    expect(rec?.why).toMatch(/144 g/)
+    expect(rec?.why).toMatch(/90 kg/)
+  })
+  it('does NOT push protein when intake already meets the target', () => {
+    // 70kg sedentary → 0.8*70 = 56g target; "moderate" intake ~95g already clears it
+    expect(byId(profileRecs(p({ weightKg: 70, activity: 'sedentary', age: '30s', protein: 'moderate' })), 'protein')).toBeUndefined()
+  })
+  it('over-50s get the higher (1.2 g/kg) target even when not very active', () => {
+    const rec = byId(profileRecs(p({ weightKg: 80, age: '60plus', activity: 'light', protein: 'some' })), 'protein')
+    expect(rec?.why).toMatch(/96 g/)           // 80*1.2 = 96
+    expect(rec).toBeDefined()
+  })
+  it('a small gap stays quiet — no nagging on a few grams', () => {
+    // 60kg sedentary young → 48g target; "some" intake ~70g clears it
+    expect(byId(profileRecs(p({ weightKg: 60, activity: 'sedentary', age: '30s', protein: 'some' })), 'protein')).toBeUndefined()
+  })
+  it('vegan sees a plant-blend framing, not whey', () => {
+    const rec = byId(profileRecs(p({ weightKg: 85, activity: 'very', diet: 'vegan', fish: 'never', protein: 'low' })), 'protein')
+    expect(rec?.name).toMatch(/plant/i)
+    expect(rec?.why).toMatch(/pea\/soy/i)
+  })
+  it('kidney disease flips a protein add to "check with your GP"', () => {
+    const rec = byId(profileRecs(p({ weightKg: 90, activity: 'very', protein: 'low', conditions: ['kidney'] })), 'protein')
+    expect(rec?.verdict).toBe('check')
+    expect(rec?.why).toMatch(/kidney/i)
+  })
+  it('reconcile keeps a taken protein when there is a gap, drops it when there is not', () => {
+    expect(reconcileItem(p({ weightKg: 90, activity: 'very', protein: 'low' }), 'protein')?.verdict).toBe('keep')
+    expect(reconcileItem(p({ weightKg: 70, activity: 'sedentary', age: '30s', protein: 'moderate' }), 'protein')?.verdict).toBe('drop')
+  })
+})
+
 describe('iron is a check, gated on menstrual blood loss (not age)', () => {
   it('flags a ferritin test for someone who has periods', () => {
     expect(byId(profileRecs(p({ sex: 'female', periods: 'regular' })), 'iron')?.verdict).toBe('check')

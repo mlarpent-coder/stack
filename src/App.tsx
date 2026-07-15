@@ -40,6 +40,14 @@ const PREFS: [string, string][] = [['coffee', 'Not in my coffee'], ['nolarge', '
 const TAKING: [string, string][] = [
   ['vitd', 'Vitamin D'], ['omega369', 'Omega 3-6-9'], ['omega3', 'Omega-3 / fish oil'], ['vitc', 'Vitamin C'],
   ['multi', 'Multivitamin'], ['magnesium', 'Magnesium'], ['b12', 'B12'], ['iron', 'Iron'],
+  ['protein', 'Protein powder'],
+]
+
+const PROTEIN_OPTS: [string, string][] = [
+  ['low', 'Rarely — mostly carbs & veg'],
+  ['some', 'About one serving a day'],
+  ['moderate', 'Protein at most meals'],
+  ['high', 'Protein-focused — most meals + snacks'],
 ]
 
 const EMPTY: Profile = { goal: [], prefs: [], conditions: [], taking: [] }
@@ -50,6 +58,9 @@ export default function App() {
   const [none, setNone] = useState(false)
   const [showBlood, setShowBlood] = useState(false)
   const [recon, setRecon] = useState<ReconItem[]>([])
+  const [wUnit, setWUnit] = useState<'kg' | 'stlb'>('kg')
+  const [stone, setStone] = useState('')
+  const [pounds, setPounds] = useState('')
 
   // conditions must be explicitly answered (incl. "none"); periods + pregnancy required for female
   const complete =
@@ -85,6 +96,35 @@ export default function App() {
       return { ...p, conditions: cur.includes(val as Condition) ? cur.filter((c) => c !== val) : [...cur, val as Condition] }
     })
   }
+  function setWeight(raw: string) {
+    setProfile((prof) => {
+      const v = raw.trim()
+      if (v === '' || Number.isNaN(Number(v)) || Number(v) <= 0) {
+        const { weightKg, ...rest } = prof
+        return rest as Profile
+      }
+      return { ...prof, weightKg: Number(v) }
+    })
+  }
+  function setKgProfile(kg: number) {
+    setProfile((prof) => {
+      if (!(kg > 0)) { const { weightKg, ...rest } = prof; return rest as Profile }
+      return { ...prof, weightKg: Math.round(kg * 10) / 10 }
+    })
+  }
+  function setStoneLb(st: string, lb: string) {
+    setStone(st); setPounds(lb)
+    setKgProfile((parseFloat(st) || 0) * 6.35029 + (parseFloat(lb) || 0) * 0.453592)
+  }
+  function switchUnit(u: 'kg' | 'stlb') {
+    if (u === wUnit) return
+    if (u === 'stlb' && profile.weightKg) {
+      const totalLb = profile.weightKg / 0.453592
+      const st = Math.floor(totalLb / 14)
+      setStone(String(st)); setPounds(String(Math.round(totalLb - st * 14)))
+    }
+    setWUnit(u)
+  }
   function setBlood(k: keyof BloodMarkers, raw: string) {
     setProfile((prof) => {
       const blood: BloodMarkers = { ...(prof.blood ?? {}) }
@@ -94,7 +134,7 @@ export default function App() {
       return { ...prof, blood: Object.keys(blood).length ? blood : undefined }
     })
   }
-  function reset() { setProfile(EMPTY); setNone(false); setShowBlood(false); setRecon([]); goto('intro') }
+  function reset() { setProfile(EMPTY); setNone(false); setShowBlood(false); setRecon([]); setWUnit('kg'); setStone(''); setPounds(''); goto('intro') }
 
   function goReport() { goto('report') }
   function sortStack() {
@@ -136,6 +176,40 @@ export default function App() {
               value={profile.goal} onSelect={(v) => toggle('goal', v)} />
             <Question label="Any way you won't take things?" optional multi options={PREFS}
               value={profile.prefs} onSelect={(v) => toggle('prefs', v)} />
+
+            <div className="q">
+              <div className="lab">Your weight<span className="opt">optional</span></div>
+              <div className="hint">Answer this <em>and</em> the protein question below and we'll check you're getting enough protein for your body. Skip either to leave protein out.</div>
+              <div className="chips" style={{ marginBottom: 12 }}>
+                <button type="button" className={`chip${wUnit === 'kg' ? ' sel' : ''}`} aria-pressed={wUnit === 'kg'} onClick={() => switchUnit('kg')}>kg</button>
+                <button type="button" className={`chip${wUnit === 'stlb' ? ' sel' : ''}`} aria-pressed={wUnit === 'stlb'} onClick={() => switchUnit('stlb')}>st / lb</button>
+              </div>
+              {wUnit === 'kg' ? (
+                <label className="bfield" style={{ maxWidth: 200 }}>
+                  <span className="bk">Weight <em>kg</em></span>
+                  <input type="number" inputMode="decimal" min="0" step="any" placeholder="e.g. 70"
+                    value={profile.weightKg ?? ''} onChange={(e) => setWeight(e.target.value)} />
+                </label>
+              ) : (
+                <div className="bloodgrid" style={{ maxWidth: 260 }}>
+                  <label className="bfield">
+                    <span className="bk">Stone <em>st</em></span>
+                    <input type="number" inputMode="numeric" min="0" step="1" placeholder="e.g. 11"
+                      value={stone} onChange={(e) => setStoneLb(e.target.value, pounds)} />
+                  </label>
+                  <label className="bfield">
+                    <span className="bk">Pounds <em>lb</em></span>
+                    <input type="number" inputMode="numeric" min="0" max="13" step="1" placeholder="e.g. 0"
+                      value={pounds} onChange={(e) => setStoneLb(stone, e.target.value)} />
+                  </label>
+                </div>
+              )}
+            </div>
+            <Question label="On a normal day, how much protein do you eat?" optional
+              hint="One serving ≈ a palm of meat/fish, 2–3 eggs, a big pot of Greek yoghurt, a scoop of protein, or a large bowl of beans, lentils or tofu."
+              options={PROTEIN_OPTS}
+              value={profile.protein ?? ''} onSelect={(v) => setField('protein', v)} />
+
             <div className="q">
               <div className="lab">Any of these — medications or conditions?</div>
               <div className="hint">Select any that apply — they affect what's safe for you.</div>

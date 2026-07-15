@@ -13,6 +13,7 @@ export const SRC: Record<string, Source> = {
   exMag: { label: 'Examine · Magnesium', url: 'https://examine.com/supplements/magnesium/' },
   exFish: { label: 'Examine · Fish oil', url: 'https://examine.com/supplements/fish-oil/' },
   exC: { label: 'Examine · Vitamin C', url: 'https://examine.com/supplements/vitamin-c/' },
+  exProtein: { label: 'Examine · Protein intake', url: 'https://examine.com/guides/protein-intake/' },
 }
 
 const lowSun = (p: CompleteProfile) => p.sun === '0-1' || p.sun === '2-3'
@@ -44,6 +45,21 @@ export function howFor(id: SupplementId, p: CompleteProfile): HowTo | null {
         ],
         buy: 'Plain monohydrate, Informed-Sport tested. Cheapest online; high street too.',
         links: [R.bulk, R.myprotein, R.handb],
+      }
+    case 'protein':
+      return {
+        fields: [
+          { k: 'Form', v: isPlant(p) ? 'Pea/soy blend (vegan) — or soy isolate' : 'Whey (isolate if dairy sits badly)' },
+          { k: 'Dose', v: 'Enough to top up the gap — usually 20–40 g (1–2 scoops) on days you fall short' },
+          { k: 'When', v: 'Any time — handy around training or as a quick breakfast' },
+          { k: 'How', v: 'In water or milk, or blended into a smoothie or porridge' },
+          { k: 'How long', v: 'As needed — it’s food, not a course; skip it on days you eat plenty' },
+          { k: 'Cost', v: '~£1 or less per serving' },
+        ],
+        buy: isPlant(p)
+          ? 'A pea/soy or multi-plant blend for a complete amino profile. Unflavoured is cheapest and most versatile.'
+          : 'Plain whey — isolate if concentrate bloats you. Ignore mass-gainer blends; look for ~20 g+ protein per scoop and Informed-Sport testing if you compete.',
+        links: [R.bulk, R.myprotein],
       }
     case 'magnesium':
       return {
